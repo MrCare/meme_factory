@@ -2,6 +2,10 @@
  * @Author: Mr.Car
  * @Date: 2025-07-30 20:59:26
 -->
+## Meme工厂
+
+自主创建Meme并且使用最小代理节省gas，可以在meme工厂mint meme
+
 ## clifWallet 编写
 
 编写一个 Vesting 合约（可参考 OpenZepplin Vesting 相关合约）， 相关的参数有：

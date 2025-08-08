@@ -10,10 +10,12 @@ contract MinimalProxy {
         implementation = _implementation;
     }
     
-    function createInscription(
+    function createMeme(
         string memory symbol,
         uint256 maxSupply,
-        uint256 perMint
+        uint256 perMint,
+        uint256 price,
+        address creator
     ) external returns (address) {
         // Create minimal proxy using CREATE2 for deterministic addresses
         bytes memory bytecode = abi.encodePacked(
@@ -22,7 +24,7 @@ contract MinimalProxy {
             hex"5af43d82803e903d91602b57fd5bf3"
         );
         
-        bytes32 salt = keccak256(abi.encodePacked(symbol, maxSupply, perMint, block.timestamp));
+        bytes32 salt = keccak256(abi.encodePacked(symbol, creator, block.timestamp));
         address proxy;
         
         assembly {
@@ -32,7 +34,7 @@ contract MinimalProxy {
         require(proxy != address(0), "Proxy creation failed");
         
         // Initialize the proxy
-        Meme(proxy).initialize(symbol, maxSupply, perMint);
+        Meme(proxy).initialize(symbol, maxSupply, perMint, price, creator, msg.sender);
         
         return proxy;
     }

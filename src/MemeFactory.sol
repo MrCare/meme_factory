@@ -9,21 +9,39 @@ contract MemeFactory {
     MinimalProxy public proxy;
     address public owner;
     
-    struct InscriptionInfo {
+    uint256 public constant PLATFORM_FEE_RATE = 100; // 1% = 100 / 10000
+    uint256 public constant FEE_DENOMINATOR = 10000;
+    
+    struct MemeInfo {
         string symbol;
         uint256 maxSupply;
         uint256 perMint;
+        uint256 price;
         uint256 minted;
+        address creator;
         bool exists;
     }
     
-    mapping(address => InscriptionInfo) public inscriptions;
+    mapping(address => MemeInfo) public memes;
     mapping(string => address) public symbolToToken;
-    address[] public allInscriptions;
+    address[] public allMemes;
     
-    event InscriptionDeployed(address indexed token, string symbol, uint256 maxSupply, uint256 perMint);
-    event InscriptionMinted(address indexed token, address indexed to, uint256 amount);
-    event ImplementationUpgraded(address oldImpl, address newImpl);
+    event MemeDeployed(
+        address indexed token, 
+        string symbol, 
+        uint256 maxSupply, 
+        uint256 perMint, 
+        uint256 price,
+        address indexed creator
+    );
+    event MemeMinted(
+        address indexed token, 
+        address indexed to, 
+        uint256 amount, 
+        uint256 paid,
+        uint256 platformFee,
+        uint256 creatorFee
+    );
     
     modifier onlyOwner() {
         require(msg.sender == owner, "Only owner");
@@ -36,57 +54,85 @@ contract MemeFactory {
         proxy = new MinimalProxy(implementation);
     }
     
-    function deployInscription(
+    function deployMeme(
         string memory symbol, 
         uint256 totalSupply, 
-        uint256 perMint
+        uint256 perMint,
+        uint256 price
     ) external returns (address) {
         require(symbolToToken[symbol] == address(0), "Symbol exists");
+        require(totalSupply > 0, "Invalid total supply");
+        require(perMint > 0 && perMint <= totalSupply, "Invalid per mint");
         
-        address newToken = proxy.createInscription(symbol, totalSupply, perMint);
+        address newToken = proxy.createMeme(symbol, totalSupply, perMint, price, msg.sender);
         
-        inscriptions[newToken] = InscriptionInfo({
+        memes[newToken] = MemeInfo({
             symbol: symbol,
             maxSupply: totalSupply,
             perMint: perMint,
+            price: price,
             minted: 0,
+            creator: msg.sender,
             exists: true
         });
         
         symbolToToken[symbol] = newToken;
-        allInscriptions.push(newToken);
+        allMemes.push(newToken);
         
-        emit InscriptionDeployed(newToken, symbol, totalSupply, perMint);
+        emit MemeDeployed(newToken, symbol, totalSupply, perMint, price, msg.sender);
         
         return newToken;
     }
     
-    function mintInscription(address tokenAddr) external returns (bool) {
-        require(inscriptions[tokenAddr].exists, "Token not exists");
+    function mintMeme(address tokenAddr) external payable returns (bool) {
+        require(memes[tokenAddr].exists, "Meme not exists");
         
+        MemeInfo storage memeInfo = memes[tokenAddr];
+        uint256 totalCost = memeInfo.price * memeInfo.perMint;
+        require(msg.value >= totalCost, "Insufficient payment");
+        
+        // Calculate fees
+        uint256 platformFee = (totalCost * PLATFORM_FEE_RATE) / FEE_DENOMINATOR;
+        uint256 creatorFee = totalCost - platformFee;
+        
+        // Mint tokens
         bool success = Meme(tokenAddr).mint(msg.sender);
         require(success, "Mint failed");
         
-        inscriptions[tokenAddr].minted += inscriptions[tokenAddr].perMint;
+        // Get the actual perMint amount from the Meme contract (in wei)
+        uint256 actualPerMint = Meme(tokenAddr).perMint();
         
-        emit InscriptionMinted(tokenAddr, msg.sender, inscriptions[tokenAddr].perMint);
+        // Update minted amount
+        memeInfo.minted += memeInfo.perMint;
+        
+        // Transfer fees
+        if (platformFee > 0) {
+            payable(owner).transfer(platformFee);
+        }
+        if (creatorFee > 0) {
+            payable(memeInfo.creator).transfer(creatorFee);
+        }
+        
+        // Refund excess payment
+        if (msg.value > totalCost) {
+            payable(msg.sender).transfer(msg.value - totalCost);
+        }
+        
+        emit MemeMinted(tokenAddr, msg.sender, actualPerMint, totalCost, platformFee, creatorFee);
         
         return true;
     }
     
-    function upgradeImplementation(address newImplementation) external onlyOwner {
-        address oldImpl = implementation;
-        implementation = newImplementation;
-        proxy = new MinimalProxy(newImplementation);
-        
-        emit ImplementationUpgraded(oldImpl, newImplementation);
+    function getMemeInfo(address tokenAddr) external view returns (MemeInfo memory) {
+        return memes[tokenAddr];
     }
     
-    function getInscriptionInfo(address tokenAddr) external view returns (InscriptionInfo memory) {
-        return inscriptions[tokenAddr];
+    function getAllMemes() external view returns (address[] memory) {
+        return allMemes;
     }
     
-    function getAllInscriptions() external view returns (address[] memory) {
-        return allInscriptions;
+    function calculateMintCost(address tokenAddr) external view returns (uint256) {
+        require(memes[tokenAddr].exists, "Meme not exists");
+        return memes[tokenAddr].price * memes[tokenAddr].perMint;
     }
 }

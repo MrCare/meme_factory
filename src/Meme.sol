@@ -11,21 +11,33 @@ contract Meme is IERC20 {
     uint256 public maxSupply;
     uint256 public perMint;
     uint256 public minted;
+    uint256 public price;
     address public factory;
+    address public creator;
     
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
     
     bool private initialized;
     
-    function initialize(string memory _symbol, uint256 _maxSupply, uint256 _perMint) external {
+    function initialize(
+        string memory _symbol, 
+        uint256 _maxSupply, 
+        uint256 _perMint,
+        uint256 _price,
+        address _creator,
+        address _factory
+    ) external {
         require(!initialized, "Already initialized");
         initialized = true;
-        name = _symbol;
+        decimals = 18;  // 显式设置decimals
+        name = string(abi.encodePacked("Meme ", _symbol));
         symbol = _symbol;
         maxSupply = _maxSupply * 10**decimals;
         perMint = _perMint * 10**decimals;
-        factory = msg.sender;
+        price = _price;
+        creator = _creator;
+        factory = _factory;
     }
     
     function mint(address to) external returns (bool) {
