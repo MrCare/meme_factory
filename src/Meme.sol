@@ -52,17 +52,28 @@ contract Meme is IERC20 {
         return true;
     }
     
-    function transfer(address to, uint256 value) external returns (bool) {
-        require(balanceOf[msg.sender] >= value, "Insufficient balance");
-        balanceOf[msg.sender] -= value;
-        balanceOf[to] += value;
-        emit Transfer(msg.sender, to, value);
+    function mintForLiquidity(address to, uint256 amount) external returns (bool) {
+        require(msg.sender == factory, "Only factory can mint");
+        // No supply limit check for liquidity tokens
+        
+        totalSupply += amount;
+        balanceOf[to] += amount;
+        
+        emit Transfer(address(0), to, amount);
         return true;
     }
     
     function approve(address spender, uint256 value) external returns (bool) {
         allowance[msg.sender][spender] = value;
         emit Approval(msg.sender, spender, value);
+        return true;
+    }
+    
+    function transfer(address to, uint256 value) external returns (bool) {
+        require(balanceOf[msg.sender] >= value, "Insufficient balance");
+        balanceOf[msg.sender] -= value;
+        balanceOf[to] += value;
+        emit Transfer(msg.sender, to, value);
         return true;
     }
     
